@@ -10,18 +10,28 @@ extern crate hashmap_union;
 
 mod weather;
 mod transport_mode;
-mod journey_type;
-mod neighbourhood;
 mod subculture;
-mod scenario;
-mod agent;
-mod simulation;
-mod intervention;
+pub mod statistics;
 mod social_network;
-mod statistics;
-mod gaussian;
-mod debug;
-mod agent_generation;
+mod simulation;
+mod scenario;
+mod neighbourhood;
+mod journey_type;
+pub mod intervention;
+pub mod gaussian;
+pub mod debug;
+mod agent;
+pub mod agent_generation;
+
+pub use journey_type::JourneyType;
+pub use agent::Agent;
+pub use weather::Weather;
+pub use transport_mode::TransportMode;
+pub use subculture::Subculture;
+pub use social_network::generate_social_network;
+pub use simulation::run;
+pub use scenario::Scenario;
+pub use neighbourhood::Neighbourhood;
 
 use std::fs::File;
 use std::collections::HashMap;
@@ -30,10 +40,9 @@ use std::env;
 use std::io::Write;
 use std::io::prelude::*;
 use rayon::prelude::*;
-use weather::Weather;
 
 /// This is the entry point for the application
-fn main() {
+pub fn main() {
     // Create a new logger for system output
     simple_logger::init().unwrap();
 
@@ -129,61 +138,9 @@ fn main() {
     info!("TOTAL RUNNING TIME: {}s", t1 - t0)
 }
 
-/// Read a social network from a file
-/// * file: An input file in YAML mapping ids to a list of ids
-/// * Returns: A HashMap mapping ids, to the ids of their friends
-fn read_network(mut file: File) -> HashMap<u32, Vec<u32>> {
-    info!("READING NETWORK");
-
-    // Create a new String (heap allocated) to store the contents of the file
-    let mut file_contents = String::new();
-
-    // Read the file into the String
-    file.read_to_string(&mut file_contents)
-        .expect("There was an error reading the file");
-
-    // Deserialize the network
-    serde_yaml::from_slice(file_contents.as_bytes())
-        .expect("There was an error parsing the file")
-}
-
-/// This generates a social network, and saves it them to YAML files in the networks/ subdirectory
-/// * number_of_simulations_per_scenario: One network is generated per scenario
-/// * number_of_social_network_links: The minimum number of links each person in the social network has
-/// * number_of_people: The number of people in the simulation
-fn generate_and_save_networks(
-    number_of_simulations_per_scenario: u32, 
-    number_of_social_network_links: u32,
-    number_of_people: u32) 
-{
-    // Generate as many social networks as number of simulations per scenario
-    let numbers: Vec<u32> = (0..number_of_simulations_per_scenario).collect();
-    // Get the networks stored as a YAML file
-    let networks: Vec<String> = numbers
-        .par_iter()
-        .map(|_| serde_yaml::to_string(&social_network::generate_social_network(
-            number_of_social_network_links, number_of_people)).unwrap())
-        .collect();
-
-    // Create a networks directory to store them in
-    std::fs::create_dir_all("config/networks")
-        .expect("Failed to create config/networks directory");
-
-    // For each network, save the network to a file
-    networks
-        .par_iter()
-        .enumerate()
-        .for_each(|(i, item)| {
-            let mut file = std::fs::File::create(format!("config/networks/{}.yaml", i+1)).ok().unwrap();
-            file.write_all(item.as_bytes()).ok();
-        });
-    
-    info!("Generating networks complete")
-}
-
 /// This stores the parameters of the model
 #[derive(Serialize, Deserialize)]
-struct Parameters {
+pub struct Parameters {
     /// Total number of years the simulation runs for
     total_years: u32,
     /// The number of people in the simulation
@@ -225,4 +182,56 @@ impl Parameters {
         serde_yaml::from_slice(file_contents.as_bytes())
             .expect("There was an error parsing the file")
     }
+}
+
+/// This generates a social network, and saves it them to YAML files in the networks/ subdirectory
+/// * number_of_simulations_per_scenario: One network is generated per scenario
+/// * number_of_social_network_links: The minimum number of links each person in the social network has
+/// * number_of_people: The number of people in the simulation
+pub fn generate_and_save_networks(
+    number_of_simulations_per_scenario: u32, 
+    number_of_social_network_links: u32,
+    number_of_people: u32) 
+{
+    // Generate as many social networks as number of simulations per scenario
+    let numbers: Vec<u32> = (0..number_of_simulations_per_scenario).collect();
+    // Get the networks stored as a YAML file
+    let networks: Vec<String> = numbers
+        .par_iter()
+        .map(|_| serde_yaml::to_string(&social_network::generate_social_network(
+            number_of_social_network_links, number_of_people)).unwrap())
+        .collect();
+
+    // Create a networks directory to store them in
+    std::fs::create_dir_all("config/networks")
+        .expect("Failed to create config/networks directory");
+
+    // For each network, save the network to a file
+    networks
+        .par_iter()
+        .enumerate()
+        .for_each(|(i, item)| {
+            let mut file = std::fs::File::create(format!("config/networks/{}.yaml", i+1)).ok().unwrap();
+            file.write_all(item.as_bytes()).ok();
+        });
+    
+    info!("Generating networks complete")
+}
+
+/// Read a social network from a file
+/// * file: An input file in YAML mapping ids to a list of ids
+/// * Returns: A HashMap mapping ids, to the ids of their friends
+pub fn read_network(mut file: File) -> HashMap<u32, Vec<u32>> {
+    info!("READING NETWORK");
+
+    // Create a new String (heap allocated) to store the contents of the file
+    let mut file_contents = String::new();
+
+    // Read the file into the String
+    file.read_to_string(&mut file_contents)
+        .expect("There was an error reading the file");
+
+    // Deserialize the network
+    serde_yaml::from_slice(file_contents.as_bytes())
+        .expect("There was an error parsing the file")
 }
