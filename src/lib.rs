@@ -27,7 +27,7 @@ pub mod agent_generation;
 
 pub use journey_type::JourneyType;
 pub use agent::Agent;
-pub use weather::Weather;
+pub use weather::{Weather, make_weather_pattern_nonpy};
 pub use transport_mode::TransportMode;
 pub use subculture::Subculture;
 pub use social_network::generate_social_network;
@@ -84,7 +84,7 @@ pub fn main(py: Python, generate: bool, parameters: &Parameters) -> PyResult<()>
         }
     };
 
-    let weather_pattern = Weather::make_pattern(
+    let weather_pattern = make_weather_pattern_nonpy(
         weather_transition_matrix, 0.14, (365 * parameters.total_years) as usize);
 
 
@@ -137,6 +137,7 @@ pub fn main(py: Python, generate: bool, parameters: &Parameters) -> PyResult<()>
 #[pymodinit]
 fn motivate(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_function!(main))?;
+    weather::register_function(m)?;
     m.add_class::<Parameters>()?;
 
     Ok(())
