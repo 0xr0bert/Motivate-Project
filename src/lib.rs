@@ -46,7 +46,7 @@ use pyo3::prelude::*;
 
 /// This is the entry point for the application
 #[pyfunction]
-pub fn main(py: Python, generate: bool) -> PyResult<()> {
+pub fn main(py: Python, generate: bool, parameters: &Parameters) -> PyResult<()> {
     // Create a new logger for system output
     simple_logger::init().unwrap();
 
@@ -57,10 +57,7 @@ pub fn main(py: Python, generate: bool) -> PyResult<()> {
         .as_secs();
 
     // Load parameters from file
-    let parameters = Parameters::from_file(
-        File::open("config/parameters.yaml")
-            .expect("Failed to open parameters file")
-    );
+    //let parameters = load_parameters_from_file("config/parameters.yaml");
 
 
     if generate {
@@ -140,54 +137,96 @@ pub fn main(py: Python, generate: bool) -> PyResult<()> {
 #[pymodinit]
 fn motivate(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_function!(main))?;
+    m.add_class::<Parameters>()?;
 
     Ok(())
 }
 
 /// This stores the parameters of the model
+#[pyclass]
 #[derive(Serialize, Deserialize)]
 pub struct Parameters {
     /// Total number of years the simulation runs for
+    #[prop(get, set)]
     total_years: u32,
     /// The number of people in the simulation
+    #[prop(get, set)]
     number_of_people: u32,
     /// The number of simulations that should take place
+    #[prop(get, set)]
     number_of_simulations: u32,
     /// How connected an agent is to their social network
+    #[prop(get, set)]
     social_connectivity: f32,
     /// How connected an agent is to their subculture
+    #[prop(get, set)]
     subculture_connectivity: f32,
     /// How connected an agent is to their neighbourhood
+    #[prop(get, set)]
     neighbourhood_connectivity: f32,
     /// The minimum number of links in their social network, and agent should have.
     /// This is the mean number of social network links / 2
+    #[prop(get, set)]
     number_of_social_network_links: u32,
     /// The minimum number of links in the neighbourhood-wide social network, an agent should have
     /// This is the mean number of links / 2
+    #[prop(get, set)]
     number_of_neighbour_links: u32,
     /// This is used as a weighting for the habit average, the most recent n days, account
     /// for approximately 86% of the average
+    #[prop(get, set)]
     days_in_habit_average: u32,
 
     /// A vec of tuples (mean, sd, weight)
     /// Used for commute length
-    distributions: Vec<(f64, f64, f64)>
+    #[prop(get, set)]
+    distributions: Vec<(f64, f64, f64)>,
+
+    // This is for reference only
+    // #[prop(get)]
+    // age: HashMap<u64, u64>,
 }
 
+#[pymethods]
 impl Parameters {
-    /// Loads Parameters from a file
-    /// * file: The YAML file storing the serialized parameters
-    /// * Returns; The created parameters
-    pub fn from_file(mut file: File) -> Self {
-        info!("Loading parameters from file");
-        let mut file_contents = String::new();
-
-        file.read_to_string(&mut file_contents)
-            .expect("There was an error reading the file");
-
-        serde_yaml::from_slice(file_contents.as_bytes())
-            .expect("There was an error parsing the file")
+    #[new]
+    pub fn __new__(obj: &PyRawObject, file_path: &str) -> PyResult<()> {
+        obj.init(|_| {
+            load_parameters_from_file(file_path)
+        })
     }
+
+    // This is for reference only
+    // #[setter]
+    // pub fn set_age(&mut self, x: &PyDict) -> PyResult<()> {
+    //     self.age = x.iter()
+    //         .map(|(a, b)| (a.extract().unwrap(), b.extract().unwrap()))
+    //         .collect();
+    //     Ok(())
+    // }
+
+    pub fn write_to_file(&self, file_path: &str) -> PyResult<()> {
+        let mut file = File::create(file_path)?;
+        let yaml = serde_yaml::to_string(self).ok().unwrap();
+        file.write_all(yaml.as_bytes())?;
+        Ok(())
+    }
+}
+
+/// Loads Parameters from a file
+/// * file: The YAML file storing the serialized parameters
+/// * Returns; The created parameters
+pub fn load_parameters_from_file(file_path: &str) -> Parameters {
+    info!("Loading parameters from file");
+    let mut file = File::open(file_path)
+        .expect("Failed to open parameters file");
+    let mut file_contents = String::new();
+
+    file.read_to_string(&mut file_contents)
+        .expect("There was an error reading the file");
+
+    serde_yaml::from_slice(file_contents.as_bytes())
+        .expect("There was an error parsing the file")
 }
 
 /// This generates a social network, and saves it them to YAML files in the networks/ subdirectory
