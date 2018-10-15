@@ -3,6 +3,14 @@ name = "motivate"
 version = "0.0.5"
 authors = ["Robert Greener <robert.greener@kcl.ac.uk>"]
 
+[lib]
+name = "motivate"
+crate-type = ["cdylib"]
+
+[dependencies.pyo3]
+version = "0.4"
+features = ["extension-module"]
+
 [dependencies]
 maplit = "1.0.1"
 itertools = "0.7.8"

@@ -1,7 +1,9 @@
+#![feature(specialization)]
 extern crate itertools;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate log;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate pyo3;
 extern crate simple_logger;
 extern crate serde_yaml;
 extern crate rand;
@@ -40,9 +42,11 @@ use std::env;
 use std::io::Write;
 use std::io::prelude::*;
 use rayon::prelude::*;
+use pyo3::prelude::*;
 
 /// This is the entry point for the application
-pub fn main() {
+#[pyfunction]
+pub fn main(py: Python, generate: bool) -> PyResult<()> {
     // Create a new logger for system output
     simple_logger::init().unwrap();
 
@@ -58,15 +62,10 @@ pub fn main() {
             .expect("Failed to open parameters file")
     );
 
-    // Get the system arguments
-    let args: Vec<String> = env::args().collect();
 
-    let mut generate = false;
-
-    // If the generate flag is used
-    if args.len() >= 2 {
-        if &args[1] == "--generate" {
-            generate_and_save_networks(
+    if generate {
+        py.allow_threads(|| {
+        generate_and_save_networks(
                 parameters.number_of_simulations, 
                 parameters.number_of_social_network_links, 
                 parameters.number_of_people);
@@ -74,9 +73,7 @@ pub fn main() {
             // Create a agents directory to store them in
              std::fs::create_dir_all("config/agents")
                 .expect("Failed to create config/agents directory");
-
-            generate = true;
-        }
+        });
     }
 
     let weather_transition_matrix = hashmap! {
@@ -95,7 +92,7 @@ pub fn main() {
 
 
     // Run in parallel the simulations
-    (1..=parameters.number_of_simulations)
+    py.allow_threads(move || (1..=parameters.number_of_simulations)
         .collect::<Vec<u32>>()
         .par_iter()
         .for_each(|id| {
@@ -127,7 +124,7 @@ pub fn main() {
                         &weather_pattern,
                         network)
                         .unwrap();
-    });
+    }));
 
     // Output the running time
 
@@ -135,7 +132,16 @@ pub fn main() {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("Time went backwards")
         .as_secs();
-    info!("TOTAL RUNNING TIME: {}s", t1 - t0)
+    info!("TOTAL RUNNING TIME: {}s", t1 - t0);
+
+    Ok(())
+}
+
+#[pymodinit]
+fn motivate(py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_function!(main))?;
+
+    Ok(())
 }
 
 /// This stores the parameters of the model
