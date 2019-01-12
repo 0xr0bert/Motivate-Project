@@ -22,7 +22,7 @@ mod statistics;
 mod gaussian;
 mod debug;
 mod agent_generation;
-mod parameters;
+pub mod parameters;
 
 use std::fs::File;
 use std::collections::HashMap;
@@ -31,7 +31,7 @@ use std::io::Write;
 use std::io::prelude::*;
 use rayon::prelude::*;
 use weather::Weather;
-use parameters::Parameters;
+pub use parameters::Parameters;
 
 /// Read a social network from a file
 /// * file: An input file in YAML mapping ids to a list of ids
