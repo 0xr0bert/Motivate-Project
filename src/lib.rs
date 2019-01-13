@@ -1,0 +1,169 @@
+extern crate itertools;
+#[macro_use] extern crate maplit;
+#[macro_use] extern crate log;
+#[macro_use] extern crate serde_derive;
+extern crate simple_logger;
+extern crate serde_yaml;
+extern crate rand;
+extern crate rayon;
+extern crate hashmap_union;
+
+mod weather;
+mod transport_mode;
+mod journey_type;
+mod neighbourhood;
+mod subculture;
+mod scenario;
+mod agent;
+mod simulation;
+mod intervention;
+mod social_network;
+mod statistics;
+mod gaussian;
+mod debug;
+mod agent_generation;
+pub mod parameters;
+
+use std::fs::File;
+use std::collections::HashMap;
+use std::time::SystemTime;
+use std::io::Write;
+use std::io::prelude::*;
+use rayon::prelude::*;
+use weather::Weather;
+pub use parameters::Parameters;
+
+/// Read a social network from a file
+/// * file: An input file in YAML mapping ids to a list of ids
+/// * Returns: A HashMap mapping ids, to the ids of their friends
+pub fn read_network(mut file: File) -> HashMap<u32, Vec<u32>> {
+    info!("READING NETWORK");
+
+    // Create a new String (heap allocated) to store the contents of the file
+    let mut file_contents = String::new();
+
+    // Read the file into the String
+    file.read_to_string(&mut file_contents)
+        .expect("There was an error reading the file");
+
+    // Deserialize the network
+    serde_yaml::from_slice(file_contents.as_bytes())
+        .expect("There was an error parsing the file")
+}
+
+/// This generates a social network, and saves it them to YAML files in the networks/ subdirectory
+/// * number_of_simulations_per_scenario: One network is generated per scenario
+/// * number_of_social_network_links: The minimum number of links each person in the social network has
+/// * number_of_people: The number of people in the simulation
+pub fn generate_and_save_networks(
+    number_of_simulations_per_scenario: u32, 
+    number_of_social_network_links: u32,
+    number_of_people: u32) 
+{
+    // Generate as many social networks as number of simulations per scenario
+    let numbers: Vec<u32> = (0..number_of_simulations_per_scenario).collect();
+    // Get the networks stored as a YAML file
+    let networks: Vec<String> = numbers
+        .par_iter()
+        .map(|_| serde_yaml::to_string(&social_network::generate_social_network(
+            number_of_social_network_links, number_of_people)).unwrap())
+        .collect();
+
+    // Create a networks directory to store them in
+    std::fs::create_dir_all("config/networks")
+        .expect("Failed to create config/networks directory");
+
+    // For each network, save the network to a file
+    networks
+        .par_iter()
+        .enumerate()
+        .for_each(|(i, item)| {
+            let mut file = std::fs::File::create(format!("config/networks/{}.yaml", i+1)).ok().unwrap();
+            file.write_all(item.as_bytes()).ok();
+        });
+    
+    info!("Generating networks complete")
+}
+
+pub fn run_simulation(
+    generate: bool,
+    parameters: Parameters,
+    )
+{
+    // Create a new logger for system output
+    simple_logger::init().unwrap();
+
+    // Used for monitoring running time
+    let t0 = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+
+    if generate {
+        generate_and_save_networks(
+                parameters.number_of_simulations, 
+                parameters.number_of_social_network_links, 
+                parameters.number_of_people);
+            
+        // Create a agents directory to store them in
+            std::fs::create_dir_all("config/agents")
+            .expect("Failed to create config/agents directory");
+    }
+
+    let weather_transition_matrix = hashmap! {
+        Weather::Good => hashmap! {
+            Weather::Good => 0.886,
+            Weather::Bad => 0.114
+        },
+        Weather::Bad => hashmap! {
+            Weather::Good => 0.699,
+            Weather::Bad => 0.301
+        }
+    };
+
+    let weather_pattern = Weather::make_pattern(
+        weather_transition_matrix, 0.14, (365 * parameters.total_years) as usize);
+
+    // Run in parallel the simulations
+    (1..=parameters.number_of_simulations)
+        .collect::<Vec<u32>>()
+        .par_iter()
+        .for_each(|id| {
+            // Get the network number and load the network
+            let network_number = id.to_string();
+            let network_file = File::open(format!("config/networks/{}.yaml", network_number))
+                .expect("File cannot be opened");
+
+            let network = read_network(network_file);
+
+            let agent_file = if generate {
+                File::create(format!("config/agents/{}.yaml", network_number)).expect("File cannot be created")
+            } else {
+                File::open(format!("config/agents/{}.yaml", network_number)).expect("File cannot be opened")
+            };
+
+            simulation::run(id.to_string(),
+                        generate,
+                        agent_file,
+                        File::open("config/scenario.yaml").ok().unwrap(),
+                        parameters.total_years,
+                        parameters.number_of_people,
+                        parameters.social_connectivity,
+                        parameters.subculture_connectivity,
+                        parameters.neighbourhood_connectivity,
+                        parameters.number_of_neighbour_links,
+                        parameters.days_in_habit_average,
+                        parameters.distributions.clone(),
+                        &weather_pattern,
+                        network)
+                        .unwrap();
+    });
+
+    // Output the running time
+
+    let t1 = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+    info!("TOTAL RUNNING TIME: {}s", t1 - t0)
+}
