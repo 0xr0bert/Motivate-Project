@@ -58,7 +58,6 @@ fn save_agents(mut file: File, agents: &[Rc<RefCell<Agent>>]) {
 /// * scenario: The scenario of the simulation
 /// * social_connectivity: How connected the agent is to its social network
 /// * neighbourhood_connectivity: How connected the agent is to its neighbourhood
-/// * days_in_habit_average: How many days should be used in the habit average
 /// * number_of_people: The number of agents to generate
 /// * distributions: JourneyType distributions, used in gmm
 /// * Returns: The created agents
@@ -67,7 +66,6 @@ pub fn generate_and_save_agents(
     scenario: &Scenario,
     social_connectivity: f32,
     neighbourhood_connectivity: f32,
-    days_in_habit_average: u32,
     number_of_people: u32,
     distributions: Vec<(f64, f64, f64)>
     ) -> Vec<Rc<RefCell<Agent>>>
@@ -76,7 +74,6 @@ pub fn generate_and_save_agents(
         scenario, 
         social_connectivity, 
         neighbourhood_connectivity, 
-        days_in_habit_average, 
         number_of_people, 
         distributions);
     
@@ -94,14 +91,12 @@ pub fn generate_and_save_agents(
 /// * scenario: The scenario of the simulation
 /// * social_connectivity: How connected the agent is to its social network
 /// * neighbourhood_connectivity: How connected the agent is to its neighbourhood
-/// * days_in_habit_average: How many days should be used in the habit average
 /// * number_of_people: The number of agents to generate
 /// * distributions: JourneyType distributions, used in gmm
 /// * Returns: The created agents
 fn generate_unlinked_agents(scenario: &Scenario,
           social_connectivity: f32,
           neighbourhood_connectivity: f32,
-          days_in_habit_average: u32,
           number_of_people: u32,
           distributions: Vec<(f64, f64, f64)>) -> Vec<Rc<RefCell<Agent>>> {
     // Create an empty vec to store agents
@@ -109,7 +104,7 @@ fn generate_unlinked_agents(scenario: &Scenario,
     // Create self.number_of_people unlinked agents
     for _ in 0..number_of_people {
         let agent = create_unlinked_agent(scenario, social_connectivity,
-            neighbourhood_connectivity, days_in_habit_average);
+            neighbourhood_connectivity);
 
         let rc_agent = Rc::new(RefCell::new(agent));
         
@@ -161,9 +156,6 @@ fn generate_unlinked_agents(scenario: &Scenario,
         .zip(residents.iter())
         .for_each(|(distance, agent)| {
             let agent_ref = &mut agent.borrow_mut();
-
-            agent_ref.commute_length_continuous = *distance;
-
             // Assign categorical distance
             if *distance < 4241.0 {
                 agent_ref.commute_length = JourneyType::LocalCommute
@@ -177,13 +169,12 @@ fn generate_unlinked_agents(scenario: &Scenario,
     // For each agent, choose an initial mode
     for agent in residents.iter() {
         let mut borrowed_agent = agent.borrow_mut();
-        let new_mode = choose_initial_norm_and_habit(
+        let new_mode = choose_initial_mode(
             borrowed_agent.owns_car, 
             borrowed_agent.owns_bike);
         
         borrowed_agent.current_mode = new_mode;
-        borrowed_agent.habit = hashmap!{new_mode => 1.0f32};
-        borrowed_agent.norm = new_mode;
+        borrowed_agent.last_mode = new_mode;
     }
 
     // Return the created agents
@@ -194,23 +185,18 @@ fn generate_unlinked_agents(scenario: &Scenario,
 /// * scenario: The scenario of the simulation
 /// * social_connectivity: How connected the agent is to its social network
 /// * neighbourhood_connectivity: How connected the agent is to its neighbourhood
-/// * days_in_habit_average: How many days should be used in the habit average
 /// * Returns: The created agent
 fn create_unlinked_agent(scenario: &Scenario,
                          social_connectivity: f32,
-                         neighbourhood_connectivity: f32,
-                         days_in_habit_average: u32) -> Agent {
+                         neighbourhood_connectivity: f32) -> Agent {
     // Choose a neighbourhood
     let neighbourhood = choose_neighbourhood(scenario);
 
     // Weather sensitivity is currently fixed
     let weather_sensitivity = rand::random::<f32>();
-    // TODO: Should consistency be used
-    let consistency = 1.0f32;
 
     // Use a placeholder transport mode
     let current_mode: TransportMode = TransportMode::PublicTransport;
-    let norm = current_mode;
     let last_mode = current_mode;
 
     // Create and return the agent
@@ -218,16 +204,11 @@ fn create_unlinked_agent(scenario: &Scenario,
         neighbourhood_id: neighbourhood.id.clone(),
         neighbourhood,
         commute_length: JourneyType::LocalCommute,
-        commute_length_continuous: 0.0,
         weather_sensitivity,
-        consistency,
         social_connectivity: social_connectivity,
         neighbourhood_connectivity: neighbourhood_connectivity,
-        average_weight: 2.0 / (days_in_habit_average as f32 + 1.0),
-        habit: hashmap!{current_mode => 1.0f32},
         current_mode,
         last_mode,
-        norm,
         owns_bike: false,
         owns_car: false,
         social_network: Vec::new(),
@@ -247,11 +228,11 @@ fn choose_neighbourhood(scenario: &Scenario) -> Rc<Neighbourhood> {
     weighted_choice.sample(&mut thread_rng())
 }
 
-/// Choose an initial norm and habit
+/// Choose an initial mode
 /// * owns_car: whether the agent owns a car
 /// * owns_bike: whether the agent owns a bike
 /// * Returns: The chosen transport mode
-fn choose_initial_norm_and_habit(owns_car: bool, owns_bike: bool) -> TransportMode {
+fn choose_initial_mode(owns_car: bool, owns_bike: bool) -> TransportMode {
     if owns_car && owns_bike {
         let randfloat = rand::random::<f64>();
         if randfloat < 0.4 {

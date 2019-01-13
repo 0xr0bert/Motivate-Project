@@ -150,7 +150,6 @@ pub fn run_simulation(
                         parameters.social_connectivity,
                         parameters.neighbourhood_connectivity,
                         parameters.number_of_neighbour_links,
-                        parameters.days_in_habit_average,
                         parameters.distributions.clone(),
                         &weather_pattern,
                         network)

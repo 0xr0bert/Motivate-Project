@@ -18,43 +18,6 @@ pub fn count_active_mode(agents: &[Rc<RefCell<Agent>>]) -> usize {
         .count()
 }
 
-/// Counts the number of agents who take an active mode counter to their inactive norm
-/// * agents: The agents to count from
-/// * Returns: The number of agent's who's current mode is Walk or Cycle but their norm is Car or PublicTransport
-pub fn count_active_mode_counter_to_inactive_norm(agents: &[Rc<RefCell<Agent>>]) -> usize {
-    agents
-        .iter()
-        .filter(|&a|
-            (a.borrow().current_mode == TransportMode::Walk
-                || a.borrow().current_mode == TransportMode::Cycle)
-            && (a.borrow().norm != TransportMode::Walk && a.borrow().norm != TransportMode::Cycle))
-        .count()
-}
-
-/// Counts the number of agents who take an inactive mode counter to their active norm
-/// * agents: The agents to count from
-/// * Returns: The number of agent's who's current mode is Car or Public Transport but their norm is Walk or Cycle
-pub fn count_inactive_mode_counter_to_active_norm(agents: &[Rc<RefCell<Agent>>]) -> usize {
-    agents
-        .iter()
-        .filter(|&a|
-            (a.borrow().current_mode != TransportMode::Walk
-                && a.borrow().current_mode != TransportMode::Cycle)
-            && (a.borrow().norm == TransportMode::Walk || a.borrow().norm == TransportMode::Cycle))
-        .count()
-}
-
-/// Counts the number of agents who have an active norm
-/// * agents: The agents to count from
-/// * Returns: The number of agent's who's norm is Walk or Cycle
-pub fn count_active_norm(agents: &[Rc<RefCell<Agent>>]) -> usize {
-    agents
-        .iter()
-        .filter(|&a|
-            a.borrow().norm == TransportMode::Walk || a.borrow().norm == TransportMode::Cycle)
-        .count()
-}
-
 /// Counts the number of agents who take an active mode grouped by commute length
 /// * agents: The agents to count from
 /// * Returns: A Map: JourneyType -> The number of agent's who's current mode is Walk or Cycle 
