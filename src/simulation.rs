@@ -30,10 +30,8 @@ use agent_generation;
 /// * scenario_file: The scenario of the simulation 
 /// * number_of_people: The number of agents to generate
 /// * social_connectivity: How connected the agent is to its social network
-/// * subculture_connectivity: How connected the agent is to its subculture
 /// * neighbourhood_connectivity: How connected the agent is to its neighbourhood
 /// * number_of_neighbour_links: The minimum number of links each agent should have in the neighbourhood network
-/// * days_in_habit_average: How many days should be used in the habit average
 /// * weather_pattern: A HashMap from day number to Weather
 /// * network: The social network
 /// * Returns: Result, nothing if successful, io:Error if output could not be written
@@ -44,10 +42,8 @@ pub fn run(id: String,
            total_years: u32,
            number_of_people: u32,
            social_connectivity: f32,
-           subculture_connectivity: f32,
            neighbourhood_connectivity: f32,
            number_of_neighbour_links: u32,
-           days_in_habit_average: u32,
            distributions: Vec<(f64, f64, f64)>,
            weather_pattern: &Vec<Weather>,
            network: HashMap<u32, Vec<u32>>) -> Result<(), io::Error> 
@@ -66,13 +62,11 @@ pub fn run(id: String,
             agents_file, 
             &scenario, 
             social_connectivity, 
-            subculture_connectivity, 
             neighbourhood_connectivity, 
-            days_in_habit_average, 
             number_of_people, 
             distributions)
     } else {
-        agent_generation::load_unlinked_agents_from_file(agents_file, &scenario.subcultures, &scenario.neighbourhoods)
+        agent_generation::load_unlinked_agents_from_file(agents_file, &scenario.neighbourhoods)
     };
 
     link_agents(&residents, number_of_neighbour_links, network);
@@ -111,11 +105,6 @@ pub fn run(id: String,
 
             // Get the new weather
             let new_weather = weather_pattern[day as usize];
-
-            // For each resident update the habit
-            for resident in residents.iter_mut() {
-                resident.borrow_mut().update_habit();
-            }
 
             // Update neighbourhood congestion modifier
             for neighbourhood in scenario.neighbourhoods.iter() {
@@ -192,12 +181,6 @@ fn link_agents_to_neighbours(agents: &[Rc<RefCell<Agent>>], n: u32) {
 /// * scenario: The scenario for this simulation
 /// * Returns: The header for the csv file
 fn generate_csv_header(scenario: &Scenario) -> String {
-    let subculture_ids: Vec<String> = scenario
-        .subcultures
-        .iter()
-        .map(|subculture| subculture.id.clone())
-        .collect();
-
     let neighbourhood_ids: Vec<String> = scenario
         .neighbourhoods
         .iter()
@@ -205,8 +188,7 @@ fn generate_csv_header(scenario: &Scenario) -> String {
         .collect();
 
     format!(
-        "Day,Rain,ActiveMode,ActiveNorm,ActiveModeCounterToInactiveNorm,InactiveModeCounterToActiveNorm,LocalCommute,CityCommute,DistantCommute,{},{}\n",
-        subculture_ids.join(","),
+        "Day,Rain,ActiveMode,LocalCommute,CityCommute,DistantCommute,{}\n",
         neighbourhood_ids.join(",")
     )
 }
@@ -221,27 +203,10 @@ fn generate_csv_output(day: u32, weather: &Weather, scenario: &Scenario, agents:
     let rain = if weather == &Weather::Good { 0 } else { 1 };
 
     let active_mode = statistics::count_active_mode(agents);
-    let active_norm = statistics::count_active_norm(agents);
-    let active_mode_counter_to_inactive_norm =
-        statistics::count_active_mode_counter_to_inactive_norm(agents);
-
-    let inactive_mode_counter_to_active_norm =
-        statistics::count_inactive_mode_counter_to_active_norm(agents);
-
     let active_mode_by_commute_length = statistics::count_active_mode_by_commute_length(agents);
     let local_commute = active_mode_by_commute_length.get(&JourneyType::LocalCommute).unwrap();
     let city_commute = active_mode_by_commute_length.get(&JourneyType::CityCommute).unwrap();
     let distant_commute = active_mode_by_commute_length.get(&JourneyType::DistantCommute).unwrap();
-
-    let active_mode_by_subculture =
-        statistics::count_active_mode_by_subculture(agents);
-
-    let active_mode_by_subculture_in_correct_order: Vec<String> = scenario
-        .subcultures
-        .iter()
-        .map(|subculture| active_mode_by_subculture.get(subculture).unwrap_or(&0usize).to_string())
-        .collect();
-
     let active_mode_by_neighbourhood =
         statistics::count_active_mode_by_neighbourhood(&scenario.neighbourhoods);
 
@@ -252,17 +217,13 @@ fn generate_csv_output(day: u32, weather: &Weather, scenario: &Scenario, agents:
         .collect();
 
     format!(
-        "{},{},{},{},{},{},{},{},{},{},{}\n",
+        "{},{},{},{},{},{},{},\n",
         day,
         rain,
         active_mode,
-        active_norm,
-        active_mode_counter_to_inactive_norm,
-        inactive_mode_counter_to_active_norm,
         local_commute,
         city_commute,
         distant_commute,
-        active_mode_by_subculture_in_correct_order.join(","),
         active_mode_by_neighbourhood_in_correct_order.join(",")
     )
 }
@@ -349,34 +310,6 @@ fn intervene(scenario: &Scenario, agents: &[Rc<RefCell<Agent>>]) {
                     .collect();
 
                 neighbourhood_to_change.capacity.replace(new_capacity);
-            }
-        );
-
-    // This adds Intervention.subculture_changes.increase_in_desirability 
-    // to Subculture.desirability
-    scenario
-        .intervention
-        .subculture_changes
-        .iter()
-        .for_each(
-            |change| {
-                let subculture_to_change = scenario
-                    .subcultures
-                    .iter()
-                    .filter(|subculture| subculture.id == change.id)
-                    .next()
-                    .expect("A subculture in your intervention was not found");
-
-                let new_desirability = union_of(
-                    &subculture_to_change.desirability.borrow(),
-                    &change.increase_in_desirability, 
-                    |v1, v2| v1 + v2);    
-
-                subculture_to_change
-                    .desirability
-                    .borrow_mut()
-                    .iter_mut()
-                    .for_each(|(k, v)| *v = *new_desirability.get(&k).unwrap());
             }
         );
     

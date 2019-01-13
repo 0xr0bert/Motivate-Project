@@ -12,7 +12,6 @@ mod weather;
 mod transport_mode;
 mod journey_type;
 mod neighbourhood;
-mod subculture;
 mod scenario;
 mod agent;
 mod simulation;
@@ -149,10 +148,8 @@ pub fn run_simulation(
                         parameters.total_years,
                         parameters.number_of_people,
                         parameters.social_connectivity,
-                        parameters.subculture_connectivity,
                         parameters.neighbourhood_connectivity,
                         parameters.number_of_neighbour_links,
-                        parameters.days_in_habit_average,
                         parameters.distributions.clone(),
                         &weather_pattern,
                         network)
