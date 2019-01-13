@@ -1,6 +1,7 @@
 extern crate motivatelib;
 
 use std::env;
+use std::fs::File;
 
 /// This is the entry point for the application
 fn main()
@@ -12,5 +13,11 @@ fn main()
             generate = true;
         }
     }
-    motivatelib::run_simulation(generate);
+    // Load parameters from file
+    let parameters = motivatelib::Parameters::from_file(
+        File::open("config/parameters.yaml")
+            .expect("Failed to open parameters file")
+    );
+
+    motivatelib::run_simulation(generate, parameters);
 }

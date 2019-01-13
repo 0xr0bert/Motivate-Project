@@ -85,7 +85,10 @@ pub fn generate_and_save_networks(
     info!("Generating networks complete")
 }
 
-pub fn run_simulation(generate: bool)
+pub fn run_simulation(
+    generate: bool,
+    parameters: Parameters,
+    )
 {
     // Create a new logger for system output
     simple_logger::init().unwrap();
@@ -95,12 +98,6 @@ pub fn run_simulation(generate: bool)
         .duration_since(std::time::UNIX_EPOCH)
         .expect("Time went backwards")
         .as_secs();
-
-    // Load parameters from file
-    let parameters = Parameters::from_file(
-        File::open("config/parameters.yaml")
-            .expect("Failed to open parameters file")
-    );
 
     if generate {
         generate_and_save_networks(
