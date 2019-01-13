@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use agent::Agent;
 use transport_mode::TransportMode;
 use journey_type::JourneyType;
-use subculture::Subculture;
 use neighbourhood::Neighbourhood;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -66,19 +65,6 @@ pub fn count_active_mode_by_commute_length(agents: &[Rc<RefCell<Agent>>]) -> Has
         .into_group_map()
         .into_iter()
         .map(|(journey_type, grouped_agents)| (journey_type, count_active_mode(&grouped_agents)))
-        .collect()
-}
-
-/// Counts the number of agents who take an active mode grouped by Subculture
-/// * agents: The agents to count from
-/// * Returns: A Map: Subculture -> The number of agent's who's current mode is Walk or Cycle 
-pub fn count_active_mode_by_subculture (agents: &[Rc<RefCell<Agent>>]) -> HashMap<Rc<Subculture>, usize> {
-    agents
-        .iter()
-        .map(|agent| (Rc::clone(&agent.borrow().subculture), Rc::clone(agent)))
-        .into_group_map()
-        .into_iter()
-        .map(|(subculture, grouped_agents)| (subculture, count_active_mode(&grouped_agents)))
         .collect()
 }
 

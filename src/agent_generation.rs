@@ -12,7 +12,6 @@ use std::fs::File;
 use transport_mode::TransportMode;
 use journey_type::JourneyType;
 use neighbourhood::Neighbourhood;
-use subculture::Subculture;
 use scenario::Scenario;
 use agent::Agent;
 use gaussian;
@@ -20,10 +19,9 @@ use serde_yaml;
 
 /// Loads unlinked agents from a YAML file
 /// * file: The file to load from
-/// * subcultures: The subcultures in the scenario
 /// * neighbourhoods: The neighbourhoods in the scenario
 /// * Returns: The loaded agents
-pub fn load_unlinked_agents_from_file(mut file: File, subcultures: &[Rc<Subculture>], neighbourhoods: &[Rc<Neighbourhood>]) -> Vec<Rc<RefCell<Agent>>> {
+pub fn load_unlinked_agents_from_file(mut file: File, neighbourhoods: &[Rc<Neighbourhood>]) -> Vec<Rc<RefCell<Agent>>> {
         info!("Loading parameters from file");
         let mut file_contents = String::new();
 
@@ -33,19 +31,12 @@ pub fn load_unlinked_agents_from_file(mut file: File, subcultures: &[Rc<Subcultu
         let mut residents: Vec<Rc<RefCell<Agent>>> = serde_yaml::from_slice(file_contents.as_bytes())
             .expect("There was an error parsing the file");
 
-        let subcultures_kvp: HashMap<String, Rc<Subculture>> = subcultures
-            .iter()
-            .map(|subculture| (subculture.id.clone(), Rc::clone(subculture)))
-            .collect();
-
         let neighbourhoods_kvp: HashMap<String, Rc<Neighbourhood>> = neighbourhoods
             .iter()
             .map(|neighbourhood| (neighbourhood.id.clone(), Rc::clone(neighbourhood)))
             .collect();
 
         for agent in residents.iter_mut() {
-            let subculture = Rc::clone(subcultures_kvp.get(&agent.borrow().subculture_id).expect("Subculture not found"));
-            agent.borrow_mut().subculture = subculture;
             let neighbourhood = Rc::clone(neighbourhoods_kvp.get(&agent.borrow().neighbourhood_id).expect("Agent not found"));
             neighbourhood.residents.borrow_mut().push(Rc::clone(agent));
             agent.borrow_mut().neighbourhood = neighbourhood;
@@ -66,7 +57,6 @@ fn save_agents(mut file: File, agents: &[Rc<RefCell<Agent>>]) {
 /// * file: The file to save them to
 /// * scenario: The scenario of the simulation
 /// * social_connectivity: How connected the agent is to its social network
-/// * subculture_connectivity: How connected the agent is to its subculture
 /// * neighbourhood_connectivity: How connected the agent is to its neighbourhood
 /// * days_in_habit_average: How many days should be used in the habit average
 /// * number_of_people: The number of agents to generate
@@ -76,7 +66,6 @@ pub fn generate_and_save_agents(
     file: File,
     scenario: &Scenario,
     social_connectivity: f32,
-    subculture_connectivity: f32,
     neighbourhood_connectivity: f32,
     days_in_habit_average: u32,
     number_of_people: u32,
@@ -86,7 +75,6 @@ pub fn generate_and_save_agents(
     let agents = generate_unlinked_agents(
         scenario, 
         social_connectivity, 
-        subculture_connectivity, 
         neighbourhood_connectivity, 
         days_in_habit_average, 
         number_of_people, 
@@ -105,7 +93,6 @@ pub fn generate_and_save_agents(
 /// See [here](https://doc.rust-lang.org/book/second-edition/ch15-05-interior-mutability.html) for more details
 /// * scenario: The scenario of the simulation
 /// * social_connectivity: How connected the agent is to its social network
-/// * subculture_connectivity: How connected the agent is to its subculture
 /// * neighbourhood_connectivity: How connected the agent is to its neighbourhood
 /// * days_in_habit_average: How many days should be used in the habit average
 /// * number_of_people: The number of agents to generate
@@ -113,7 +100,6 @@ pub fn generate_and_save_agents(
 /// * Returns: The created agents
 fn generate_unlinked_agents(scenario: &Scenario,
           social_connectivity: f32,
-          subculture_connectivity: f32,
           neighbourhood_connectivity: f32,
           days_in_habit_average: u32,
           number_of_people: u32,
@@ -123,7 +109,7 @@ fn generate_unlinked_agents(scenario: &Scenario,
     // Create self.number_of_people unlinked agents
     for _ in 0..number_of_people {
         let agent = create_unlinked_agent(scenario, social_connectivity,
-            subculture_connectivity, neighbourhood_connectivity, days_in_habit_average);
+            neighbourhood_connectivity, days_in_habit_average);
 
         let rc_agent = Rc::new(RefCell::new(agent));
         
@@ -207,17 +193,14 @@ fn generate_unlinked_agents(scenario: &Scenario,
 /// Create an unlinked agent, that does not own a bike or a car, without a current mode, and without a commute length
 /// * scenario: The scenario of the simulation
 /// * social_connectivity: How connected the agent is to its social network
-/// * subculture_connectivity: How connected the agent is to its subculture
 /// * neighbourhood_connectivity: How connected the agent is to its neighbourhood
 /// * days_in_habit_average: How many days should be used in the habit average
 /// * Returns: The created agent
 fn create_unlinked_agent(scenario: &Scenario,
                          social_connectivity: f32,
-                         subculture_connectivity: f32,
                          neighbourhood_connectivity: f32,
                          days_in_habit_average: u32) -> Agent {
-    // Choose a subculture and, neighbourhood
-    let subculture = choose_subculture(scenario);
+    // Choose a neighbourhood
     let neighbourhood = choose_neighbourhood(scenario);
 
     // Weather sensitivity is currently fixed
@@ -232,8 +215,6 @@ fn create_unlinked_agent(scenario: &Scenario,
 
     // Create and return the agent
     Agent {
-        subculture_id: subculture.id.clone(),
-        subculture,
         neighbourhood_id: neighbourhood.id.clone(),
         neighbourhood,
         commute_length: JourneyType::LocalCommute,
@@ -241,7 +222,6 @@ fn create_unlinked_agent(scenario: &Scenario,
         weather_sensitivity,
         consistency,
         social_connectivity: social_connectivity,
-        subculture_connectivity: subculture_connectivity,
         neighbourhood_connectivity: neighbourhood_connectivity,
         average_weight: 2.0 / (days_in_habit_average as f32 + 1.0),
         habit: hashmap!{current_mode => 1.0f32},
@@ -262,18 +242,6 @@ fn choose_neighbourhood(scenario: &Scenario) -> Rc<Neighbourhood> {
     let mut weighted: Vec<distributions::Weighted<Rc<Neighbourhood>>> = scenario.neighbourhoods
         .iter()
         .map(|s: &Rc<Neighbourhood>| distributions::Weighted {weight: 1, item: Rc::clone(s)})
-        .collect();
-    let weighted_choice = distributions::WeightedChoice::new(&mut weighted);
-    weighted_choice.sample(&mut thread_rng())
-}
-
-/// Choose a random subculture, equal chance of each
-/// * scenario: The scenario of the simulation
-/// * Returns: The chosen subculture
-fn choose_subculture(scenario: &Scenario) -> Rc<Subculture> {
-    let mut weighted: Vec<distributions::Weighted<Rc<Subculture>>> = scenario.subcultures
-        .iter()
-        .map(|s: &Rc<Subculture>| distributions::Weighted {weight: 1, item: Rc::clone(s)})
         .collect();
     let weighted_choice = distributions::WeightedChoice::new(&mut weighted);
     weighted_choice.sample(&mut thread_rng())

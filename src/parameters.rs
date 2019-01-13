@@ -12,8 +12,6 @@ pub struct Parameters {
     pub number_of_simulations: u32,
     /// How connected an agent is to their social network
     pub social_connectivity: f32,
-    /// How connected an agent is to their subculture
-    pub subculture_connectivity: f32,
     /// How connected an agent is to their neighbourhood
     pub neighbourhood_connectivity: f32,
     /// The minimum number of links in their social network, and agent should have.

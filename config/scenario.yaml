@@ -1,24 +1,5 @@
 ---
 id: intervention B
-subcultures:
-  - id: Subculture A
-    desirability:
-      PublicTransport: 0.5
-      Walk: 0.699999988079071
-      Car: 0.800000011920929
-      Cycle: 0.8999999761581421
-  - id: Subculture B
-    desirability:
-      Cycle: 0.6000000238418579
-      Walk: 0.699999988079071
-      Car: 0.8999999761581421
-      PublicTransport: 0.800000011920929
-  - id: Subculture C
-    desirability:
-      Car: 0.4000000059604645
-      Cycle: 0.8999999761581421
-      Walk: 0.8999999761581421
-      PublicTransport: 0.5
 neighbourhoods:
   - id: "1"
     supportiveness:
@@ -251,6 +232,5 @@ intervention:
     - id: "4"
       increase_in_capacity:
         Car: -1000
-  subculture_changes: []
   change_in_number_of_bikes: 0
   change_in_number_of_cars: 0
