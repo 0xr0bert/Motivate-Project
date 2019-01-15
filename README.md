@@ -1,4 +1,6 @@
 # Motivate [![Build Status](https://travis-ci.com/ragreener1/Motivate.svg?branch=master)](https://travis-ci.com/ragreener1/Motivate)
+
+This is my final year project for BSc Computer Science
 ## Setup
 Install rust using [rustup](https://rustup.rs)
 
